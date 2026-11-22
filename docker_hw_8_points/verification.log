@@ -1,0 +1,160 @@
+
+=== BUILD AND RUN ===
+ Image docker_hw_8_updated-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 582B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 869B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.13-slim
+#3 ...
+
+#4 [auth] library/python:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.13-slim
+#3 DONE 1.8s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 198B done
+#5 DONE 0.0s
+
+#6 [1/4] FROM docker.io/library/python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
+#6 resolve docker.io/library/python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 127B done
+#7 DONE 0.0s
+
+#8 [2/4] WORKDIR /opt/counter
+#8 CACHED
+
+#9 [3/4] COPY app/ ./
+#9 CACHED
+
+#10 [4/4] RUN if [ -f requirements.txt ]; then         pip install --no-cache-dir -r requirements.txt;     elif [ -f pyproject.toml ]; then         pip install --no-cache-dir .;     else         echo 'No dependency file: using packages from Python standard library';     fi
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 exporting manifest sha256:5408c5d726b72af0222f8172fa3547f3ca11caa66ad7421bbe80ef73d4cea88a done
+#11 exporting config sha256:19a5dbd2dc980b7920899ed2e653c2b6df9e599ee22c081ae60da2fd2bc68860 done
+#11 exporting attestation manifest sha256:f196e98b31c07a1ed1439474da79da5469365144deaef7a40a34dbc48f14b2df done
+#11 exporting manifest list sha256:22a1ec5bd3d3bb77da57ad0820e484a92e52f62f72ca8c4c5df47096a894e817 done
+#11 naming to docker.io/library/docker_hw_8_updated-app:latest done
+#11 unpacking to docker.io/library/docker_hw_8_updated-app:latest done
+#11 DONE 0.0s
+
+#12 resolving provenance for metadata file
+#12 DONE 0.0s
+ Image docker_hw_8_updated-app Built 
+ Container docker_hw_8_updated-redis-1 Running 
+ Container docker_hw_8_updated-app-1 Running 
+ Container docker_hw_8_updated-redis-1 Waiting 
+ Container docker_hw_8_updated-redis-1 Healthy 
+NAME                          IMAGE                                                                     COMMAND                  SERVICE   CREATED         STATUS                   PORTS
+docker_hw_8_updated-app-1     sha256:3925e0742973a26919f0287ad741a0d99085821557bccfa7d4c637bd8af059dc   "/bin/sh -c 'if [ -f…"   app       5 minutes ago   Up 5 minutes (healthy)   0.0.0.0:8080->8000/tcp, [::]:8080->8000/tcp
+docker_hw_8_updated-redis-1   redis:7.4-alpine                                                          "docker-entrypoint.s…"   redis     5 minutes ago   Up 2 minutes (healthy)   6379/tcp
+GET /healthz -> HTTP 200 (expected 200)
+GET /readyz -> HTTP 200 (expected 200)
+
+=== INCREMENT ===
+{"greeting": "Hello from Docker!", "count": 3, "hostname": "14d59e5dda92", "storage": "redis"}
+GET /: {"greeting": "Hello from Docker!", "count": 3, "hostname": "14d59e5dda92", "storage": "redis"}
+Counter before recreation: 3
+
+=== REMOVE AND RECREATE CONTAINERS (volume retained) ===
+ Container docker_hw_8_updated-app-1 Stopping 
+ Container docker_hw_8_updated-app-1 Stopped 
+ Container docker_hw_8_updated-app-1 Removing 
+ Container docker_hw_8_updated-app-1 Removed 
+ Container docker_hw_8_updated-redis-1 Stopping 
+ Container docker_hw_8_updated-redis-1 Stopped 
+ Container docker_hw_8_updated-redis-1 Removing 
+ Container docker_hw_8_updated-redis-1 Removed 
+ Network docker_hw_8_updated_default Removing 
+ Network docker_hw_8_updated_default Removed 
+ Network docker_hw_8_updated_default Creating 
+ Network docker_hw_8_updated_default Creating 
+ Network docker_hw_8_updated_default Created 
+ Network docker_hw_8_updated_default Created 
+ Container docker_hw_8_updated-redis-1 Creating 
+ Container docker_hw_8_updated-redis-1 Created 
+ Container docker_hw_8_updated-app-1 Creating 
+ Container docker_hw_8_updated-app-1 Created 
+ Container docker_hw_8_updated-redis-1 Starting 
+ Container docker_hw_8_updated-redis-1 Started 
+ Container docker_hw_8_updated-redis-1 Waiting 
+ Container docker_hw_8_updated-redis-1 Healthy 
+ Container docker_hw_8_updated-app-1 Starting 
+ Container docker_hw_8_updated-app-1 Started 
+GET /: {"greeting": "Hello from Docker!", "count": 3, "hostname": "04d9cea5c1cf", "storage": "redis"}
+OK: counter remained 3
+
+=== REDIS FAILURE ===
+ Container docker_hw_8_updated-redis-1 Stopping 
+ Container docker_hw_8_updated-redis-1 Stopped 
+GET /healthz -> HTTP 200 (expected 200)
+GET /readyz -> HTTP 503 (expected 503)
+GET / -> HTTP 503 (expected 503)
+POST /increment -> HTTP 503 (expected 503)
+
+=== RECOVERY ===
+ Container docker_hw_8_updated-redis-1 Starting 
+ Container docker_hw_8_updated-redis-1 Started 
+OK: app has not been restarted or recreated
+GET /: {"greeting": "Hello from Docker!", "count": 3, "hostname": "04d9cea5c1cf", "storage": "redis"}
+OK: same counter after Redis restart
+POST /increment -> HTTP 200 (expected 200)
+GET /: {"greeting": "Hello from Docker!", "count": 4, "hostname": "04d9cea5c1cf", "storage": "redis"}
+OK: after POST counter is 4 (was 3)
+
+=== HEALTHCHECKS AND LOGS ===
+NAME                          IMAGE                     COMMAND                  SERVICE   CREATED          STATUS                                     PORTS
+docker_hw_8_updated-app-1     docker_hw_8_updated-app   "/bin/sh -c 'if [ -f…"   app       10 seconds ago   Up 5 seconds (healthy)                     0.0.0.0:8080->8000/tcp, [::]:8080->8000/tcp
+docker_hw_8_updated-redis-1   redis:7.4-alpine          "docker-entrypoint.s…"   redis     11 seconds ago   Up Less than a second (health: starting)   6379/tcp
+app-1    | 2026-11-22 17:42:50,557 listening port=8000 storage=redis
+app-1    | 2026-11-22 17:42:52,279 http 10.254.254.1 "GET /readyz HTTP/1.1" 200 -
+app-1    | 2026-11-22 17:42:52,306 http 10.254.254.1 "GET / HTTP/1.1" 200 -
+app-1    | 2026-11-22 17:42:54,715 http 10.254.254.1 "GET /healthz HTTP/1.1" 200 -
+app-1    | 2026-11-22 17:42:54,851 storage_unavailable: ConnectionError
+app-1    | 2026-11-22 17:42:54,852 http 10.254.254.1 "GET /readyz HTTP/1.1" 503 -
+app-1    | 2026-11-22 17:42:55,009 storage_unavailable: ConnectionError
+app-1    | 2026-11-22 17:42:55,010 http 10.254.254.1 "GET / HTTP/1.1" 503 -
+app-1    | 2026-11-22 17:42:55,172 storage_unavailable: ConnectionError
+app-1    | 2026-11-22 17:42:55,172 http 10.254.254.1 "POST /increment HTTP/1.1" 503 -
+app-1    | 2026-11-22 17:42:55,406 http 10.254.254.1 "GET /readyz HTTP/1.1" 200 -
+app-1    | 2026-11-22 17:42:55,451 http 127.0.0.1 "GET /healthz HTTP/1.1" 200 -
+app-1    | 2026-11-22 17:42:55,503 http 10.254.254.1 "GET / HTTP/1.1" 200 -
+redis-1  | 1:M 22 Nov 2026 17:42:45.107 * Opening AOF incr file appendonly.aof.1.incr.aof on server start
+redis-1  | 1:M 22 Nov 2026 17:42:45.107 * Ready to accept connections tcp
+app-1    | 2026-11-22 17:42:55,521 http 10.254.254.1 "POST /increment HTTP/1.1" 200 -
+app-1    | 2026-11-22 17:42:55,533 http 10.254.254.1 "GET / HTTP/1.1" 200 -
+redis-1  | 1:signal-handler (1795369372) Received SIGTERM scheduling shutdown...
+redis-1  | 1:M 22 Nov 2026 17:42:52.571 * User requested shutdown...
+redis-1  | 1:M 22 Nov 2026 17:42:52.571 * Calling fsync() on the AOF file.
+redis-1  | 1:M 22 Nov 2026 17:42:52.571 * Saving the final RDB snapshot before exiting.
+redis-1  | 1:M 22 Nov 2026 17:42:52.573 * DB saved on disk
+redis-1  | 1:M 22 Nov 2026 17:42:52.573 # Redis is now ready to exit, bye bye...
+redis-1  | 1:C 22 Nov 2026 17:42:55.389 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1  | 1:C 22 Nov 2026 17:42:55.389 * Redis version=7.4.12, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1  | 1:C 22 Nov 2026 17:42:55.389 * Configuration loaded
+redis-1  | 1:M 22 Nov 2026 17:42:55.389 * monotonic clock: POSIX clock_gettime
+redis-1  | 1:M 22 Nov 2026 17:42:55.391 * Running mode=standalone, port=6379.
+redis-1  | 1:M 22 Nov 2026 17:42:55.391 * Server initialized
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * Reading RDB base file on AOF loading...
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * Loading RDB produced by version 7.4.12
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * RDB age 792 seconds
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * RDB memory usage when created 0.94 Mb
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * RDB is base AOF
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * Done loading RDB, keys loaded: 0, keys expired: 0.
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * DB loaded from base file appendonly.aof.1.base.rdb: 0.001 seconds
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * DB loaded from incr file appendonly.aof.1.incr.aof: 0.000 seconds
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * DB loaded from append only file: 0.001 seconds
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * Opening AOF incr file appendonly.aof.1.incr.aof on server start
+redis-1  | 1:M 22 Nov 2026 17:42:55.392 * Ready to accept connections tcp
+SUCCESS: 8-point functional checks finished.
