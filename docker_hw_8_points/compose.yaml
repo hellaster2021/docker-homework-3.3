@@ -1,0 +1,42 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8000}:${APP_PORT:-8000}"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "${APP_PORT:-8000}"
+      GREETING: "${GREETING:-Hello from Docker!}"
+      STORAGE: redis
+      REDIS_URL: "redis://redis:6379/0"
+      APP_COMMAND: "${APP_COMMAND:-python main.py}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  redis_data:
