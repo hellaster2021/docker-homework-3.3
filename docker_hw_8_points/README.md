@@ -1,136 +1,46 @@
-# ДЗ по Docker — уровень 8 баллов
+ДЗ 3. Docker
 
-Приложение со счётчиком запускается вместе с Redis через Docker Compose.
-Код исходного приложения **не меняется**. Используется named volume `redis_data`,
-а Redis сохраняет операции через AOF (`--appendonly yes`).
+В задании нужно было запустить приложение со счётчиком в Docker и сделать так, чтобы значение счётчика не пропадало после пересоздания контейнеров. Код из папки app не менял.
 
-> **Перед использованием:** положите исходную папку `app/` из репозитория-шаблона
-> рядом с `Dockerfile`. Инструкция: [ADD_ORIGINAL_APP.md](ADD_ORIGINAL_APP.md).
-> Сейчас архив включает только Docker-инфраструктуру. Команда старта
-> `APP_COMMAND` и Python-зависимости должны совпадать с инструкцией оригинала.
+Что сделал
 
-## Структура
+Собрал образ приложения на python:3.13-slim. Через Docker Compose запускаются два сервиса: app и redis (redis:7.4-alpine). Приложение обращается к Redis по адресу redis://redis:6379/0.
 
-```text
-.
-├── app/                  # исходный код из шаблона, без изменений (добавить)
-├── Dockerfile
-├── compose.yaml
-├── .env.example
-├── .dockerignore
-├── .gitignore
-├── check_8.sh
-└── README.md
-```
+Данные Redis хранятся в именованном volume redis_data. Для записи на диск включён AOF. Порт приложения внутри контейнера — 8000, с компьютера оно доступно на 8080. Порт самого Redis наружу не открывается.
 
-## Запуск
+Для обоих сервисов добавлены healthcheck. При запуске приложение ждёт, пока Redis будет готов.
 
-Требуются Docker Desktop (с Docker Compose) и curl.
+Запуск
 
-```sh
+Нужны Docker Desktop и curl. В папке проекта:
+
 cp .env.example .env
-docker compose config
 docker compose up -d --build
 docker compose ps
-docker compose logs --tail=50 app redis
-```
 
-Откройте http://localhost:8000/ (если не меняли `HOST_PORT`).
 
-**Настройки:** `HOST_PORT` — порт на компьютере; `APP_PORT` — порт приложения
-внутри контейнера; `GREETING` — приветствие; `APP_COMMAND` — команда запуска.
-Переменные `STORAGE=redis` и `REDIS_URL=redis://redis:6379/0` передаются
-приложению в `compose.yaml`. Redis НЕ выставляет порт 6379 на компьютер.
+Приветствие и внешний порт можно поменять в .env.
 
-Для смены параметров отредактируйте `.env`, затем:
+Проверка приложения:
 
-```sh
-docker compose up -d --force-recreate
-```
+curl http://localhost:8080/
+curl -X POST http://localhost:8080/increment
+curl http://localhost:8080/readyz
 
-## Проверки для 8 баллов
+Что проверил
 
-Запустить сценарий (сохранит вывод в отчёт):
+Сначала отправил GET /: счётчик был равен 0. После POST /increment получил 1, повторный GET / тоже вернул 1.
 
-```sh
+Затем удалил контейнеры командой docker compose down и создал их заново через docker compose up -d. Счётчик остался равен 1, то есть данные сохранились в volume.
+
+После docker compose stop redis приложение продолжило отвечать на /healthz кодом 200, а /readyz и POST /increment возвращали 503. Когда запустил Redis обратно, приложение снова смогло читать счётчик без перезапуска: значение осталось 1, следующий POST увеличил его до 2.
+
+Те же проверки запустил через check_8.sh:
+
 chmod +x check_8.sh
 ./check_8.sh 2>&1 | tee verification.log
-```
 
-Или выполнить вручную:
 
-```sh
-# 1. Работоспособность
-curl -i http://localhost:8000/healthz
-curl -i http://localhost:8000/readyz
-curl -i http://localhost:8000/
+Скрипт завершился сообщением SUCCESS: 8-point functional checks finished.. Вывод проверки сохранён в verification.log.
 
-# 2. Счётчик
-curl -i -X POST http://localhost:8000/increment
-curl -i -X POST http://localhost:8000/increment
-curl -i http://localhost:8000/
-
-# 3. Проверить сохранение данных, даже если пересоздать контейнеры
-docker compose down
-docker compose up -d
-curl -i http://localhost:8000/
-
-# 4. Остановить Redis, НЕ останавливая приложение
-docker compose stop redis
-curl -i http://localhost:8000/healthz
-curl -i http://localhost:8000/readyz
-curl -i -X POST http://localhost:8000/increment
-
-# 5. Восстановить Redis. Перезапуск app НЕ требуется.
-docker compose start redis
-curl -i http://localhost:8000/readyz
-curl -i http://localhost:8000/
-curl -i -X POST http://localhost:8000/increment
-
-docker compose logs --tail=50 app redis
-```
-
-Ожидается: `GET /healthz` = HTTP 200 даже при остановленном Redis;
-`GET /readyz` и `POST /increment` = HTTP 503 без Redis; после его
-возврата данные счётчика сохраняются, а новый POST увеличивает N на 1.
-Проверяйте реальные значения ответа, не подставляйте вымышленные логи.
-
-**Не запускайте** `docker compose down -v` во время проверки сохранности:
-эта команда специально удаляет volume и уничтожает данные Redis.
-
-## Отчёт о проверках
-
-После успешного запуска включите в репозиторий файл `verification.log` либо
-перенесите реальный вывод и команды сюда. Перед отправкой заполните:
-
-| Проверка | Фактический результат |
-|---|---|
-| `docker compose ps` (оба healthy) | _вставить реальный вывод_ |
-| `POST /increment`, получено N | _записать N_ |
-| `GET /` после `down` и `up -d` | _записать сохранённое N_ |
-| Redis остановлен: `/healthz` | _HTTP 200_ |
-| Redis остановлен: `/readyz` | _HTTP 503_ |
-| Redis остановлен: `POST /increment` | _HTTP 503_ |
-| Redis запущен: `GET /` и `POST /increment` | _N и N+1_ |
-
-## Как сдавать
-
-1. Создайте отдельный репозиторий GitHub и добавьте оригинальную папку `app/`
-   вместе с файлами этого проекта.
-2. Проверьте, что `docker compose up -d --build` запускается на Mac.
-3. Выполните проверки и сохраните реальные результаты в README или `verification.log`.
-4. Выполните:
-
-```sh
-git init
-git add .
-git commit -m "Docker homework: compose and Redis persistence"
-git branch -M main
-git remote add origin https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ.git
-git push -u origin main
-```
-
-5. Если репозиторий приватный, добавьте преподавателей в Collaborators.
-6. Отправьте ссылку на репозиторий в Google-форму, указанную в задании.
-
-`.env` не коммитьте: в Git должен лежать `.env.example`.
+При повторных запусках проверок значение счётчика будет больше — оно не сбрасывается автоматически.
